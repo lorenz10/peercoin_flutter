@@ -1,9 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 
 import 'package:bitcoin_flutter/bitcoin_flutter.dart';
+import 'package:crypto/crypto.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
+import 'package:hex/hex.dart';
 import 'package:peercoin/models/walletaddress.dart';
 import 'package:peercoin/providers/appsettings.dart';
 import 'package:peercoin/screens/wallet_home.dart';
@@ -48,6 +54,14 @@ class _SendTabState extends State<SendTab> {
   WalletAddress? _transferedAddress;
   late List<WalletAddress> _availableAddresses = [];
 
+  //Tempura
+  bool fileAdded = false;
+  bool hashComputed = false;
+  late FilePickerResult fileResult;
+  late File file;
+  String fileName = 'Seleziona un file';
+  late String fileHash = 'calcolo hash...';
+
   @override
   void didChangeDependencies() async {
     if (_initial == true) {
@@ -66,13 +80,24 @@ class _SendTabState extends State<SendTab> {
   }
 
   Future<Map> buildTx(bool dryrun, [int fee = 0]) async {
-    return await _activeWallets.buildTransaction(
-      _wallet.name,
-      _addressKey.currentState!.value.trim(),
-      _amountKey.currentState!.value,
-      fee,
-      dryrun,
-    );
+    if (!fileAdded) {
+      return await _activeWallets.buildTransaction(
+        _wallet.name,
+        _addressKey.currentState!.value.trim(),
+        _amountKey.currentState!.value,
+        fee,
+        dryrun,
+      );
+    }else{ //Tempura
+      return await _activeWallets.buildTransaction(
+        _wallet.name,
+        _addressKey.currentState!.value.trim(),
+        _amountKey.currentState!.value,
+        fee,
+        dryrun,
+        fileHash,
+      );
+    }
   }
 
   void parseQrResult(String code) {
@@ -107,6 +132,7 @@ class _SendTabState extends State<SendTab> {
     Map _buildResult;
     var _firstPress = true;
     _buildResult = await buildTx(true);
+    computeHash();
 
     int? _destroyedChange = _buildResult['destroyedChange'];
     _txFee = _buildResult['fee'];
@@ -175,12 +201,30 @@ class _SendTabState extends State<SendTab> {
                           'letter_code': '${_wallet.letterCode}'
                         }),
                         style: TextStyle(fontWeight: FontWeight.bold)),
+
+                    //Tempura
+                    if(fileAdded)
+                      Column(children: [
+                        SizedBox(height: 10),
+                        Text(
+                            'File aggiunto:',),
+                        Text(
+                            fileName,
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        Text(
+                          'Hash del file:',),
+                        Text(
+                            fileHash,
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ],),
+
                     SizedBox(height: 20),
                     PeerButton(
                       text: AppLocalizations.instance
                           .translate('send_confirm_send'),
                       action: () async {
                         if (_firstPress == false) return; //prevent double tap
+                        if (fileAdded && !hashComputed) return; //wait for hash
                         try {
                           _firstPress = false;
                           var _buildResult = await buildTx(false, _txFee);
@@ -401,6 +445,43 @@ class _SendTabState extends State<SendTab> {
 
                           return null;
                         }),
+
+                    //Tempura: timestamp service
+                    Padding(
+                      padding: const EdgeInsets.only(top:30),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          PeerServiceTitle(title: 'File timestamp',),
+                          Row(children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right:20),
+                              child: Icon(
+                                Icons.file_present,
+                                color: Theme.of(context).unselectedWidgetColor,
+                              ),
+                            ),
+                            Expanded(child: Text(fileName)),
+                            if (!fileAdded)
+                                IconButton(
+                                  onPressed: addFile,
+                                  icon: Icon(
+                                    Icons.add_rounded,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                )
+                            else
+                              IconButton(
+                                onPressed: removeFile,
+                                icon: Icon(
+                                  Icons.clear,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              )
+                            ],),
+                        ],
+                      ),
+                    ),
                     SizedBox(height: 30),
                     PeerButtonBorder(
                       text: AppLocalizations.instance.translate(
@@ -459,4 +540,83 @@ class _SendTabState extends State<SendTab> {
       ],
     );
   }
+
+  //Tempura: functions
+  Future<void> addFile() async {
+    String path;
+    try {
+      fileResult = (await FilePicker.platform.pickFiles())!;
+        
+      path = fileResult.files.single.path!;
+      file = File(path);
+      setState(() {
+        fileAdded = true;
+        fileName = fileResult.files.single.name;
+      });
+
+      //fileSize = await HashUtility.getFileSize(file,2);
+      
+    } on Exception catch (e) {
+      print(e);
+      setState(() { fileName = 'Errore apertura file'; });
+    }
+  }
+
+  void removeFile() {
+    setState(() {
+      fileName = 'Seleziona un file';
+      fileAdded = false;
+    });
+  }
+
+  void computeHash() async {
+    try {
+      var hash = await HashUtility.fileToHash(file);
+      setState(() {
+        fileHash = hash;
+        hashComputed = true;
+      });
+    } on Exception catch (e) {
+      print(e);
+      setState(() { fileHash = 'Errore calcolo hash'; });
+    }
+  }
+}
+
+//Tempura: hash utility
+class HashUtility{
+
+  HashUtility._(); //Cannot initialize this class
+
+  /// Return the size of a File object with the correct unit measure
+  static Future<String> getFileSize(File file, int decimals) async {
+    var bytes = await file.length();
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    var i = (log(bytes) / log(1024)).floor();
+    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) + ' ' + suffixes[i];
+  }
+
+  /// Compute the hash of a File, changing the name of the file will not
+  /// change this value
+  static Future<String> fileToHash(File file) async {
+    var bytes = await file.readAsBytes();
+    var digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  ///If a transaction contains a timestamped file will contain
+  ///6a <hex len of following text (always 69 bytes)> 4e33484642
+  ///which means 'OP_RETURN 69 N3HFB' before the hash
+  static bool hasOpReturnHash(String txHex){
+    return txHex.contains('6a454e33484642');
+  }
+
+  ///Retrieve the hash from the hexadecimal of the transaction
+  static String getHashFromTransHex(String txHex){
+    var split = txHex.split('6a454e33484642');
+    var sub = split[1].substring(0,128);
+    return utf8.decode(HEX.decode(sub));
+  }
+
 }

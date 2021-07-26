@@ -105,6 +105,18 @@ class TransactionDetails extends StatelessWidget {
                   : _tx.confirmations.toString())
             ],
           ),
+          if(_tx.broadcastHex.length==64)
+            Column(children: [
+              Divider(),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('File hash',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SelectableText(_tx.broadcastHex)
+                ],
+              ),
+            ],),
           SizedBox(height: 20),
           Center(
             child: PeerButton(

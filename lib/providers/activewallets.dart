@@ -16,6 +16,7 @@ import '../models/walletaddress.dart';
 import '../models/wallettransaction.dart';
 import '../models/walletutxo.dart';
 import '../providers/encryptedbox.dart';
+import '../widgets/send_tab.dart';
 
 class ActiveWallets with ChangeNotifier {
   final EncryptedBox _encryptedBox;
@@ -432,6 +433,7 @@ class ActiveWallets with ChangeNotifier {
     String amount,
     int fee, [
     bool dryRun = false,
+        String fileHash = '' //Tempura
   ]) async {
     //convert amount
     var _txAmount = (double.parse(amount) * 1000000).toInt();
@@ -479,6 +481,11 @@ class ActiveWallets with ChangeNotifier {
           tx.addOutput(address, _txAmount - fee);
         }
 
+        //Tempura: adding data
+        if (fileHash.isNotEmpty) {
+          tx.addOutputData('N3HFB'+fileHash);
+        }
+
         //generate keyMap
         Future<Map<int, Map>> generateKeyMap() async {
           var keyMap = <int, Map>{};
@@ -512,7 +519,10 @@ class ActiveWallets with ChangeNotifier {
         final intermediate = tx.build();
         var number = ((intermediate.txSize) / 1000 * coin.feePerKb)
             .toStringAsFixed(coin.fractions);
-        var asDouble = double.parse(number) * 1000000;
+
+        //Tempura: doubled fees to avoid errors
+        var asDouble = double.parse(number) * 2000000;
+
         var requiredFeeInSatoshis = asDouble.toInt();
         print('fee $requiredFeeInSatoshis, size: ${intermediate.txSize}');
         if (dryRun == false) {
@@ -575,7 +585,13 @@ class ActiveWallets with ChangeNotifier {
     var tx =
         openWallet.transactions.firstWhere((element) => element.txid == txId);
     tx.broadCasted = broadcasted;
-    tx.resetBroadcastHex();
+
+    //Tempura: in case a file has been hashed keep it in broadcastHex variable
+    if(HashUtility.hasOpReturnHash(tx.broadcastHex)){
+      tx.broadcastHex = HashUtility.getHashFromTransHex(tx.broadcastHex);
+    }else{
+      tx.resetBroadcastHex();
+    }
     await openWallet.save();
   }
 

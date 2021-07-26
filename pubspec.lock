@@ -64,8 +64,8 @@ packages:
     description:
       path: "."
       ref: null_safety
-      resolved-ref: "429aaf7b89de06af88778fd1316512a73a4ab653"
-      url: "https://github.com/Vesta-wallet/bitcoin_flutter.git"
+      resolved-ref: d00b7f2ed45cc45622b8dd4dfaff61255132e96e
+      url: "https://github.com/lorenz10/bitcoin_flutter.git"
     source: git
     version: "3.0.0"
   boolean_selector:
@@ -271,6 +271,13 @@ packages:
       url: "https://pub.dartlang.org"
     source: hosted
     version: "6.1.0"
+  file_picker:
+    dependency: "direct main"
+    description:
+      name: file_picker
+      url: "https://pub.dartlang.org"
+    source: hosted
+    version: "3.0.3"
   fixnum:
     dependency: transitive
     description:
@@ -421,7 +428,7 @@ packages:
     source: hosted
     version: "2.0.0"
   hex:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: hex
       url: "https://pub.dartlang.org"

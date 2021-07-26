@@ -47,6 +47,28 @@ class AvailableCoins {
       genesisHash:
           '00000001f757bb737f6596503e17cd17b0658ce630cc727c0cca81aec47c9f06',
     ),
+    'tempuraTestnet': Coin(
+      name: 'tempuraTestnet',
+      displayName: 'Tempura Testnet',
+      uriCode: '?',
+      letterCode: 'tPPC',
+      iconPath: 'assets/icon/ppc-icon-48.png',
+      iconPathTransparent: 'assets/icon/ppc-icon-white-48.png',
+      networkType: NetworkType(
+        messagePrefix: '\x18Peercoin Signed Message:\n',
+        bech32: 'tpc',
+        bip32: Bip32Type(public: 0x043587cf, private: 0x04358394),
+        pubKeyHash: 0x6f,
+        scriptHash: 0xc4,
+        wif: 0xef,
+      ),
+      fractions: 6,
+      minimumTxValue: 10000,
+      feePerKb: 0.01,
+      explorerTxDetailUrl: 'https://tblockbook.peercoin.net/tx/',
+      genesisHash:
+      '000069364f734182f534847502f599e4b9e43341c312265c9b34a9a53db57bb9',
+    ),
   };
 
   Map<String, Coin> get availableCoins {
