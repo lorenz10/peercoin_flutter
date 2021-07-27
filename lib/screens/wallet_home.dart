@@ -215,7 +215,7 @@ class _WalletHomeState extends State<WalletHomeScreen>
         break;
       case Tabs.send:
         body = Expanded(
-          child: SendTab(changeIndex, _address, _label, _connectionState),
+          child: SendTab(changeIndex, _address, _label, _connectionState,_unusedAddress),
         );
         break;
 

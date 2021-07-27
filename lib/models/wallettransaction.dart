@@ -49,4 +49,9 @@ class WalletTransaction extends HiveObject {
   void resetBroadcastHex() {
     broadcastHex = '';
   }
+
+  //Tempura
+  bool isFileHash(){
+    return broadcastHex.length==64;
+  }
 }

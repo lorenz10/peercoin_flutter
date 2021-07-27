@@ -53,19 +53,25 @@ class TransactionDetails extends StatelessWidget {
             ],
           ),
           Divider(),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                AppLocalizations.instance.translate('tx_value'),
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SelectableText((_tx.value / 1000000).toString() +
-                  ' ' +
-                  _coinWallet.letterCode)
-            ],
-          ),
-          Divider(),
+          if(!_tx.isFileHash())
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.instance.translate('tx_value'),
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SelectableText((_tx.value / 1000000).toString() +
+                        ' ' +
+                        _coinWallet.letterCode)
+                  ],
+                ),
+                Divider(),
+              ],
+            ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -105,8 +111,10 @@ class TransactionDetails extends StatelessWidget {
                   : _tx.confirmations.toString())
             ],
           ),
-          if(_tx.broadcastHex.length==64)
-            Column(children: [
+          if(_tx.isFileHash())
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               Divider(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

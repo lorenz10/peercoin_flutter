@@ -174,19 +174,13 @@ class _TransactionListState extends State<TransactionList> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  (_filteredTx[i - 1].direction == 'in'
-                                          ? '+'
-                                          : '-') +
-                                      (_filteredTx[i - 1].value / 1000000)
-                                          .toString(),
+                                  getText(_filteredTx[i - 1]),
                                   style: TextStyle(
                                     fontWeight:
                                         _filteredTx[i - 1].timestamp != 0
                                             ? FontWeight.bold
                                             : FontWeight.w300,
-                                    color: _filteredTx[i - 1].direction == 'out'
-                                        ? Theme.of(context).errorColor
-                                        : Theme.of(context).bottomAppBarColor,
+                                    color: getColor(_filteredTx[i - 1]),
                                   ),
                                 ),
                               ],
@@ -262,5 +256,24 @@ class _TransactionListState extends State<TransactionList> {
               ),
       ],
     );
+  }
+
+  //Tempura
+  String getText(WalletTransaction tx){
+    if(tx.isFileHash()) return 'File';
+    if(tx.direction == 'out'){
+      return '-'+(tx.value / 1000000).toString();
+    }else{
+      return '+'+(tx.value / 1000000).toString();
+    }
+  }
+  //Tempura
+  Color getColor(WalletTransaction tx){
+    if(tx.isFileHash()) return Colors.blue;
+    if(tx.direction == 'out'){
+      return Theme.of(context).errorColor;
+    }else{
+      return Theme.of(context).bottomAppBarColor;
+    }
   }
 }

@@ -31,7 +31,8 @@ class SendTab extends StatefulWidget {
   final String? _address;
   final String? _label;
   final _connectionState;
-  SendTab(this._changeIndex, this._address, this._label, this._connectionState);
+  final String _timestampAddress;
+  SendTab(this._changeIndex, this._address, this._label, this._connectionState, this._timestampAddress);
 
   @override
   _SendTabState createState() => _SendTabState();
@@ -60,7 +61,7 @@ class _SendTabState extends State<SendTab> {
   late FilePickerResult fileResult;
   late File file;
   String fileName = 'Seleziona un file';
-  late String fileHash = 'calcolo hash...';
+  late String fileHash = 'Calcolo hash...';
 
   @override
   void didChangeDependencies() async {
@@ -80,24 +81,24 @@ class _SendTabState extends State<SendTab> {
   }
 
   Future<Map> buildTx(bool dryrun, [int fee = 0]) async {
-    if (!fileAdded) {
-      return await _activeWallets.buildTransaction(
-        _wallet.name,
-        _addressKey.currentState!.value.trim(),
-        _amountKey.currentState!.value,
-        fee,
-        dryrun,
-      );
-    }else{ //Tempura
-      return await _activeWallets.buildTransaction(
-        _wallet.name,
-        _addressKey.currentState!.value.trim(),
-        _amountKey.currentState!.value,
-        fee,
-        dryrun,
-        fileHash,
-      );
-    }
+    return await _activeWallets.buildTransaction(
+      _wallet.name,
+      _addressKey.currentState!.value.trim(),
+      _amountKey.currentState!.value,
+      fee,
+      dryrun,
+    );
+  }
+
+  //Tempura
+  Future<Map> buildTxData(bool dryrun, [int fee = 0]) async {
+    return await _activeWallets.buildTransactionData(
+      _wallet.name,
+      widget._timestampAddress,
+      fileHash,
+      fee,
+      dryrun,
+    );
   }
 
   void parseQrResult(String code) {
@@ -132,7 +133,6 @@ class _SendTabState extends State<SendTab> {
     Map _buildResult;
     var _firstPress = true;
     _buildResult = await buildTx(true);
-    computeHash();
 
     int? _destroyedChange = _buildResult['destroyedChange'];
     _txFee = _buildResult['fee'];
@@ -201,30 +201,12 @@ class _SendTabState extends State<SendTab> {
                           'letter_code': '${_wallet.letterCode}'
                         }),
                         style: TextStyle(fontWeight: FontWeight.bold)),
-
-                    //Tempura
-                    if(fileAdded)
-                      Column(children: [
-                        SizedBox(height: 10),
-                        Text(
-                            'File aggiunto:',),
-                        Text(
-                            fileName,
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                        Text(
-                          'Hash del file:',),
-                        Text(
-                            fileHash,
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ],),
-
                     SizedBox(height: 20),
                     PeerButton(
                       text: AppLocalizations.instance
                           .translate('send_confirm_send'),
                       action: () async {
                         if (_firstPress == false) return; //prevent double tap
-                        if (fileAdded && !hashComputed) return; //wait for hash
                         try {
                           _firstPress = false;
                           var _buildResult = await buildTx(false, _txFee);
@@ -238,9 +220,9 @@ class _SendTabState extends State<SendTab> {
                           });
                           //broadcast
                           Provider.of<ElectrumConnection>(context,
-                                  listen: false)
+                              listen: false)
                               .broadcastTransaction(
-                                  _buildResult['hex'], _buildResult['id']);
+                              _buildResult['hex'], _buildResult['id']);
                           //store label if exists
                           if (_labelKey.currentState!.value != '') {
                             _activeWallets.updateLabel(
@@ -249,6 +231,94 @@ class _SendTabState extends State<SendTab> {
                               _labelKey.currentState!.value,
                             );
                           }
+                          //pop message
+                          Navigator.of(context).pop();
+                          //navigate back to tx list
+                          widget._changeIndex(Tabs.transactions);
+                        } catch (e) {
+                          print('error $e');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                AppLocalizations.instance.translate(
+                                  'send_oops',
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                    )
+                  ],
+                ),
+              ),
+            ],
+          );
+        });
+  }
+
+  //Tempura
+  void showTransactionConfirmationData(context) async {
+    Map _buildResult;
+    var _firstPress = true;
+    _buildResult = await buildTxData(true);
+    await computeHash();
+
+    _txFee = _buildResult['fee'];
+    await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return SimpleDialog(
+            title: Text(AppLocalizations.instance
+                .translate('send_confirm_transaction')),
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                child: Column(
+                  children: [
+                    SizedBox(height: 10),
+                    Text(AppLocalizations.instance.translate('send_fee', {
+                      'amount': '${_txFee / 1000000}',
+                      'letter_code': '${_wallet.letterCode}'
+                    })),
+                      Column(children: [
+                        SizedBox(height: 10),
+                        Text(
+                          'File da caricare:',),
+                        Text(
+                            fileName,
+                            style: TextStyle(fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
+                        SizedBox(height: 10),
+                        Text(
+                          'Hash del file:',),
+                        Text(
+                            fileHash,
+                            style: TextStyle(fontWeight: FontWeight.bold),textAlign: TextAlign.center,),
+                      ],),
+
+                    SizedBox(height: 20),
+                    PeerButton(
+                      text: AppLocalizations.instance
+                          .translate('send_confirm_send'),
+                      action: () async {
+                        if (_firstPress == false) return; //prevent double tap
+                        if (fileAdded && !hashComputed) return; //wait for hash
+                        try {
+                          _firstPress = false;
+                          var _buildResult = await buildTxData(false, _txFee);
+                          //write tx to history
+                          await _activeWallets.putOutgoingTx(
+                              _wallet.name, widget._timestampAddress, {
+                            'txid': _buildResult['id'],
+                            'hex': _buildResult['hex'],
+                            'outValue': _totalValue - _txFee,
+                            'outFees': _txFee
+                          });
+                          //broadcast
+                          Provider.of<ElectrumConnection>(context,
+                              listen: false)
+                              .broadcastTransaction(
+                              _buildResult['hex'], _buildResult['id']);
                           //pop message
                           Navigator.of(context).pop();
                           //navigate back to tx list
@@ -327,7 +397,7 @@ class _SendTabState extends State<SendTab> {
                             color: Theme.of(context).unselectedWidgetColor,
                           ),
                           labelText:
-                              AppLocalizations.instance.translate('tx_address'),
+                          AppLocalizations.instance.translate('tx_address'),
                           suffixIcon: IconButton(
                             onPressed: () async {
                               var data = await Clipboard.getData('text/plain');
@@ -363,7 +433,7 @@ class _SendTabState extends State<SendTab> {
                         }
                         var sanitized = value.trim();
                         if (Address.validateAddress(
-                                sanitized, _availableCoin.networkType) ==
+                            sanitized, _availableCoin.networkType) ==
                             false) {
                           return AppLocalizations.instance
                               .translate('send_invalid_address');
@@ -382,7 +452,7 @@ class _SendTabState extends State<SendTab> {
                           color: Theme.of(context).unselectedWidgetColor,
                         ),
                         labelText:
-                            AppLocalizations.instance.translate('send_label'),
+                        AppLocalizations.instance.translate('send_label'),
                       ),
                       maxLength: 32,
                     ),
@@ -396,7 +466,7 @@ class _SendTabState extends State<SendTab> {
                               getValidator(_availableCoin.fractions)),
                         ],
                         keyboardType:
-                            TextInputType.numberWithOptions(decimal: true),
+                        TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
                           icon: Icon(
                             Icons.money,
@@ -414,7 +484,7 @@ class _SendTabState extends State<SendTab> {
                           final convertedValue = value.replaceAll(',', '.');
                           amountController.text = convertedValue;
                           var txValueInSatoshis =
-                              (double.parse(convertedValue) * 1000000).toInt();
+                          (double.parse(convertedValue) * 1000000).toInt();
                           print(
                               'req value $txValueInSatoshis - ${_wallet.balance}');
                           if (convertedValue.contains('.') &&
@@ -432,7 +502,7 @@ class _SendTabState extends State<SendTab> {
                             return AppLocalizations.instance.translate(
                                 'send_amount_below_minimum', {
                               'amount':
-                                  '${_availableCoin.minimumTxValue / 1000000}'
+                              '${_availableCoin.minimumTxValue / 1000000}'
                             });
                           }
                           if (txValueInSatoshis == _wallet.balance &&
@@ -445,43 +515,6 @@ class _SendTabState extends State<SendTab> {
 
                           return null;
                         }),
-
-                    //Tempura: timestamp service
-                    Padding(
-                      padding: const EdgeInsets.only(top:30),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          PeerServiceTitle(title: 'File timestamp',),
-                          Row(children: [
-                            Padding(
-                              padding: const EdgeInsets.only(right:20),
-                              child: Icon(
-                                Icons.file_present,
-                                color: Theme.of(context).unselectedWidgetColor,
-                              ),
-                            ),
-                            Expanded(child: Text(fileName)),
-                            if (!fileAdded)
-                                IconButton(
-                                  onPressed: addFile,
-                                  icon: Icon(
-                                    Icons.add_rounded,
-                                    color: Theme.of(context).primaryColor,
-                                  ),
-                                )
-                            else
-                              IconButton(
-                                onPressed: removeFile,
-                                icon: Icon(
-                                  Icons.clear,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                              )
-                            ],),
-                        ],
-                      ),
-                    ),
                     SizedBox(height: 30),
                     PeerButtonBorder(
                       text: AppLocalizations.instance.translate(
@@ -491,7 +524,7 @@ class _SendTabState extends State<SendTab> {
                         final result = await Navigator.of(context).pushNamed(
                             Routes.QRScan,
                             arguments:
-                                AppLocalizations.instance.translate('scan_qr'));
+                            AppLocalizations.instance.translate('scan_qr'));
                         if (result != null) parseQrResult(result as String);
                       },
                     ),
@@ -504,21 +537,21 @@ class _SendTabState extends State<SendTab> {
                           FocusScope.of(context).unfocus(); //hide keyboard
                           //check for required auth
                           var _appSettings =
-                              Provider.of<AppSettings>(context, listen: false);
+                          Provider.of<AppSettings>(context, listen: false);
                           if (_appSettings
                               .authenticationOptions!['sendTransaction']!) {
                             await Auth.requireAuth(
                                 context,
                                 _appSettings.biometricsAllowed,
-                                () => showTransactionConfirmation(context));
+                                    () => showTransactionConfirmation(context));
                           } else {
                             showTransactionConfirmation(context);
                           }
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                               content: Text(AppLocalizations.instance.translate(
-                            'send_errors_solve',
-                          ))));
+                                'send_errors_solve',
+                              ))));
                         }
                       },
                     ),
@@ -533,6 +566,61 @@ class _SendTabState extends State<SendTab> {
                         )),
                   ],
                 ),
+              ),
+            ),
+
+            //Tempura
+            PeerContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  PeerServiceTitle(title: 'File timestamp',),
+                  Row(children: [
+                    Padding(
+                      padding: const EdgeInsets.only(right:20),
+                      child: Icon(
+                        Icons.file_present,
+                        color: Theme.of(context).unselectedWidgetColor,
+                      ),
+                    ),
+                    Expanded(child: Text(fileName)),
+                    if (!fileAdded)
+                      IconButton(
+                        onPressed: addFile,
+                        icon: Icon(
+                          Icons.add_rounded,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      )
+                    else
+                      IconButton(
+                        onPressed: removeFile,
+                        icon: Icon(
+                          Icons.clear_rounded,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      )
+                  ],),
+                  SizedBox(height: 30),
+                  PeerButton(
+                    text: 'Conferma',
+                    action: () async {
+                        if (fileAdded) {
+                          var _appSettings =
+                          Provider.of<AppSettings>(context, listen: false);
+                          if (_appSettings
+                              .authenticationOptions!['sendTransaction']!) {
+                            await Auth.requireAuth(
+                                context,
+                                _appSettings.biometricsAllowed,
+                                    () => showTransactionConfirmationData(context));
+                          } else {
+                            showTransactionConfirmationData(context);
+                          }
+                        }
+                    },
+                  ),
+                ],
               ),
             ),
           ],
@@ -553,8 +641,6 @@ class _SendTabState extends State<SendTab> {
         fileAdded = true;
         fileName = fileResult.files.single.name;
       });
-
-      //fileSize = await HashUtility.getFileSize(file,2);
       
     } on Exception catch (e) {
       print(e);
@@ -569,7 +655,7 @@ class _SendTabState extends State<SendTab> {
     });
   }
 
-  void computeHash() async {
+  Future<void> computeHash() async {
     try {
       var hash = await HashUtility.fileToHash(file);
       setState(() {

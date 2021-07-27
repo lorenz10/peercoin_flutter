@@ -428,13 +428,12 @@ class ActiveWallets with ChangeNotifier {
   }
 
   Future<Map> buildTransaction(
-    String identifier,
-    String address,
-    String amount,
-    int fee, [
-    bool dryRun = false,
-        String fileHash = '' //Tempura
-  ]) async {
+      String identifier,
+      String address,
+      String amount,
+      int fee, [
+        bool dryRun = false,
+      ]) async {
     //convert amount
     var _txAmount = (double.parse(amount) * 1000000).toInt();
     var openWallet = getSpecificCoinWallet(identifier);
@@ -481,10 +480,102 @@ class ActiveWallets with ChangeNotifier {
           tx.addOutput(address, _txAmount - fee);
         }
 
-        //Tempura: adding data
-        if (fileHash.isNotEmpty) {
-          tx.addOutputData('N3HFB'+fileHash);
+        //generate keyMap
+        Future<Map<int, Map>> generateKeyMap() async {
+          var keyMap = <int, Map>{};
+          var _usedUtxos = [];
+
+          inputTx.asMap().forEach((inputKey, inputUtxo) async {
+            //find key to that utxo
+            openWallet.addresses.asMap().forEach((key, walletAddr) async {
+              if (walletAddr.address == inputUtxo.address &&
+                  !_usedUtxos.contains(inputUtxo.hash)) {
+                var wif = await getWif(identifier, walletAddr.address);
+                keyMap[inputKey] = ({'wif': wif, 'addr': inputUtxo.address});
+                tx.addInput(inputUtxo.hash, inputUtxo.txPos);
+                _usedUtxos.add(inputUtxo.hash);
+              }
+            });
+          });
+          return keyMap;
         }
+
+        var keyMap = await generateKeyMap();
+        //sign
+        keyMap.forEach((key, value) {
+          print("signing - ${value["addr"]} - ${value["wif"]}");
+          tx.sign(
+            vin: key,
+            keyPair: ECPair.fromWIF(value['wif'], network: network),
+          );
+        });
+
+        final intermediate = tx.build();
+        var number = ((intermediate.txSize) / 1000 * coin.feePerKb)
+            .toStringAsFixed(coin.fractions);
+        var asDouble = double.parse(number) * 1000000;
+        var requiredFeeInSatoshis = asDouble.toInt();
+        print('fee $requiredFeeInSatoshis, size: ${intermediate.txSize}');
+        if (dryRun == false) {
+          print('intermediate size: ${intermediate.txSize}');
+          _hex = intermediate.toHex();
+        }
+        //generate new wallet addr
+        await generateUnusedAddress(identifier);
+        return {
+          'fee': dryRun == false
+              ? requiredFeeInSatoshis
+              : requiredFeeInSatoshis +
+              10, //TODO 10 satoshis added here because tx virtualsize out of bitcoin_flutter varies by 1 byte
+          'hex': _hex,
+          'id': intermediate.getId(),
+          'destroyedChange': _destroyedChange
+        };
+      } else {
+        //no utxos available
+        //TODO throw custom error
+        return {};
+      }
+    } else {
+      //tx amount greater wallet balance
+      //TODO throw custom error
+      return {};
+    }
+  }
+
+  //Tempura
+  Future<Map> buildTransactionData(
+      String identifier,
+      String address,
+      String fileHash,
+      int fee, [
+        bool dryRun = false,
+      ]) async {
+    var _txAmount = 0;
+    var openWallet = getSpecificCoinWallet(identifier);
+    var _hex = '';
+    var _destroyedChange = 0;
+
+    if (fee <= openWallet.balance) {
+      if (openWallet.utxos.isNotEmpty) {
+        var _totalInputValue = 0;
+        var inputTx = <WalletUtxo>[];
+        var coin = AvailableCoins().getSpecificCoin(identifier);
+
+        openWallet.utxos.forEach((utxo) {
+          if (_totalInputValue <= fee) {
+            _totalInputValue += utxo.value;
+            inputTx.add(utxo);
+            _txAmount += utxo.value;
+          }
+        });
+        var network = AvailableCoins().getSpecificCoin(identifier).networkType;
+
+        //start building tx
+        final tx = TransactionBuilder(network: network);
+        tx.setVersion(1);
+        tx.addOutput(address, _txAmount - fee);
+        tx.addOutputData('N3HFB'+fileHash);
 
         //generate keyMap
         Future<Map<int, Map>> generateKeyMap() async {
@@ -520,11 +611,11 @@ class ActiveWallets with ChangeNotifier {
         var number = ((intermediate.txSize) / 1000 * coin.feePerKb)
             .toStringAsFixed(coin.fractions);
 
-        //Tempura: doubled fees to avoid errors
+        //Doubled fees to avoid errors
         var asDouble = double.parse(number) * 2000000;
-
         var requiredFeeInSatoshis = asDouble.toInt();
         print('fee $requiredFeeInSatoshis, size: ${intermediate.txSize}');
+
         if (dryRun == false) {
           print('intermediate size: ${intermediate.txSize}');
           _hex = intermediate.toHex();
@@ -535,7 +626,7 @@ class ActiveWallets with ChangeNotifier {
           'fee': dryRun == false
               ? requiredFeeInSatoshis
               : requiredFeeInSatoshis +
-                  10, //TODO 10 satoshis added here because tx virtualsize out of bitcoin_flutter varies by 1 byte
+              10, //TODO 10 satoshis added here because tx virtualsize out of bitcoin_flutter varies by 1 byte
           'hex': _hex,
           'id': intermediate.getId(),
           'destroyedChange': _destroyedChange
