@@ -47,10 +47,12 @@ class AvailableCoins {
       genesisHash:
           '00000001f757bb737f6596503e17cd17b0658ce630cc727c0cca81aec47c9f06',
     ),
+
+    //Tempura: changed only name and genesis block
     'tempuraTestnet': Coin(
       name: 'tempuraTestnet',
       displayName: 'Tempura Testnet',
-      uriCode: '?',
+      uriCode: 'none',
       letterCode: 'tPPC',
       iconPath: 'assets/icon/ppc-icon-48.png',
       iconPathTransparent: 'assets/icon/ppc-icon-white-48.png',

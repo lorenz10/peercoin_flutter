@@ -21,6 +21,10 @@ class WalletTransaction extends HiveObject {
   bool broadCasted = true;
   @HiveField(8)
   String broadcastHex = '';
+  @HiveField(9)
+  String? fileHash;
+  @HiveField(10)
+  String? fileName;
 
   WalletTransaction({
     required this.txid,
@@ -32,6 +36,8 @@ class WalletTransaction extends HiveObject {
     required this.broadCasted,
     required this.broadcastHex,
     required this.confirmations,
+    this.fileHash,
+    this.fileName
   });
 
   set newTimestamp(int newTime) {
@@ -51,7 +57,5 @@ class WalletTransaction extends HiveObject {
   }
 
   //Tempura
-  bool isFileHash(){
-    return broadcastHex.length==64;
-  }
+  bool get isTimestampTx => fileName!=null && fileHash!=null;
 }

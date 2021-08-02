@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:bitcoin_flutter/bitcoin_flutter.dart';
 import 'package:crypto/crypto.dart';
@@ -9,7 +7,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
-import 'package:hex/hex.dart';
 import 'package:peercoin/models/walletaddress.dart';
 import 'package:peercoin/providers/appsettings.dart';
 import 'package:peercoin/screens/wallet_home.dart';
@@ -307,13 +304,13 @@ class _SendTabState extends State<SendTab> {
                           _firstPress = false;
                           var _buildResult = await buildTxData(false, _txFee);
                           //write tx to history
-                          await _activeWallets.putOutgoingTx(
+                          await _activeWallets.putOutgoingTxData(
                               _wallet.name, widget._timestampAddress, {
                             'txid': _buildResult['id'],
                             'hex': _buildResult['hex'],
-                            'outValue': _totalValue - _txFee,
+                            'outValue': _txFee,
                             'outFees': _txFee
-                          });
+                          }, fileHash, fileName);
                           //broadcast
                           Provider.of<ElectrumConnection>(context,
                               listen: false)
@@ -569,7 +566,7 @@ class _SendTabState extends State<SendTab> {
               ),
             ),
 
-            //Tempura
+            //Tempura: timestamp service UI
             PeerContainer(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -604,21 +601,7 @@ class _SendTabState extends State<SendTab> {
                   SizedBox(height: 30),
                   PeerButton(
                     text: 'Conferma',
-                    action: () async {
-                        if (fileAdded) {
-                          var _appSettings =
-                          Provider.of<AppSettings>(context, listen: false);
-                          if (_appSettings
-                              .authenticationOptions!['sendTransaction']!) {
-                            await Auth.requireAuth(
-                                context,
-                                _appSettings.biometricsAllowed,
-                                    () => showTransactionConfirmationData(context));
-                          } else {
-                            showTransactionConfirmationData(context);
-                          }
-                        }
-                    },
+                    action: confirm,
                   ),
                 ],
               ),
@@ -629,7 +612,26 @@ class _SendTabState extends State<SendTab> {
     );
   }
 
-  //Tempura: functions
+
+  //Tempura: all the following methods are meant for the
+  // timestamping service
+
+  Future<void> confirm() async {
+    if (fileAdded) {
+      var _appSettings =
+      Provider.of<AppSettings>(context, listen: false);
+      if (_appSettings
+          .authenticationOptions!['sendTransaction']!) {
+        await Auth.requireAuth(
+            context,
+            _appSettings.biometricsAllowed,
+                () => showTransactionConfirmationData(context));
+      } else {
+        showTransactionConfirmationData(context);
+      }
+    }
+  }
+
   Future<void> addFile() async {
     String path;
     try {
@@ -657,7 +659,7 @@ class _SendTabState extends State<SendTab> {
 
   Future<void> computeHash() async {
     try {
-      var hash = await HashUtility.fileToHash(file);
+      var hash = await fileToHash(file);
       setState(() {
         fileHash = hash;
         hashComputed = true;
@@ -667,42 +669,12 @@ class _SendTabState extends State<SendTab> {
       setState(() { fileHash = 'Errore calcolo hash'; });
     }
   }
-}
 
-//Tempura: hash utility
-class HashUtility{
-
-  HashUtility._(); //Cannot initialize this class
-
-  /// Return the size of a File object with the correct unit measure
-  static Future<String> getFileSize(File file, int decimals) async {
-    var bytes = await file.length();
-    if (bytes <= 0) return '0 B';
-    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    var i = (log(bytes) / log(1024)).floor();
-    return ((bytes / pow(1024, i)).toStringAsFixed(decimals)) + ' ' + suffixes[i];
-  }
-
-  /// Compute the hash of a File, changing the name of the file will not
-  /// change this value
+  //compute file hash
   static Future<String> fileToHash(File file) async {
     var bytes = await file.readAsBytes();
     var digest = sha256.convert(bytes);
     return digest.toString();
   }
-
-  ///If a transaction contains a timestamped file will contain
-  ///6a <hex len of following text (always 69 bytes)> 4e33484642
-  ///which means 'OP_RETURN 69 N3HFB' before the hash
-  static bool hasOpReturnHash(String txHex){
-    return txHex.contains('6a454e33484642');
-  }
-
-  ///Retrieve the hash from the hexadecimal of the transaction
-  static String getHashFromTransHex(String txHex){
-    var split = txHex.split('6a454e33484642');
-    var sub = split[1].substring(0,128);
-    return utf8.decode(HEX.decode(sub));
-  }
-
 }
+

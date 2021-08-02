@@ -15,7 +15,8 @@ enum ElectrumConnectionState { waiting, connected, offline }
 class ElectrumConnection with ChangeNotifier {
   static const Map<String, double> _requiredProtocol = {
     'peercoin': 1.4,
-    'peercoinTestnet': 1.4
+    'peercoinTestnet': 1.4,
+    'tempuraTestnet':1.4,
   };
 
   Timer? _pingTimer;

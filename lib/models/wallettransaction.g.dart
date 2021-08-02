@@ -26,13 +26,15 @@ class WalletTransactionAdapter extends TypeAdapter<WalletTransaction> {
       broadCasted: fields[7] as bool,
       broadcastHex: fields[8] as String,
       confirmations: fields[6] as int,
+      fileHash: fields[9] as String?,
+      fileName: fields[10] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, WalletTransaction obj) {
     writer
-      ..writeByte(9)
+      ..writeByte(11)
       ..writeByte(0)
       ..write(obj.txid)
       ..writeByte(1)
@@ -50,7 +52,11 @@ class WalletTransactionAdapter extends TypeAdapter<WalletTransaction> {
       ..writeByte(7)
       ..write(obj.broadCasted)
       ..writeByte(8)
-      ..write(obj.broadcastHex);
+      ..write(obj.broadcastHex)
+      ..writeByte(9)
+      ..write(obj.fileHash)
+      ..writeByte(10)
+      ..write(obj.fileName);
   }
 
   @override

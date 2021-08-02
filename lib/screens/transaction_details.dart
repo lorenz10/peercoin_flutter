@@ -53,7 +53,7 @@ class TransactionDetails extends StatelessWidget {
             ],
           ),
           Divider(),
-          if(!_tx.isFileHash())
+          if(!_tx.isTimestampTx)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -111,7 +111,21 @@ class TransactionDetails extends StatelessWidget {
                   : _tx.confirmations.toString())
             ],
           ),
-          if(_tx.isFileHash())
+          if(_tx.isTimestampTx)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Divider(),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('File hash',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    SelectableText(_tx.fileHash!)
+                  ],
+                ),
+              ],),
+          if(_tx.isTimestampTx)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -119,9 +133,9 @@ class TransactionDetails extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('File hash',
+                  Text('File name',
                       style: TextStyle(fontWeight: FontWeight.bold)),
-                  SelectableText(_tx.broadcastHex)
+                  SelectableText(_tx.fileName!)
                 ],
               ),
             ],),

@@ -260,7 +260,7 @@ class _TransactionListState extends State<TransactionList> {
 
   //Tempura
   String getText(WalletTransaction tx){
-    if(tx.isFileHash()) return 'File';
+    if(tx.isTimestampTx) return 'File';
     if(tx.direction == 'out'){
       return '-'+(tx.value / 1000000).toString();
     }else{
@@ -269,7 +269,7 @@ class _TransactionListState extends State<TransactionList> {
   }
   //Tempura
   Color getColor(WalletTransaction tx){
-    if(tx.isFileHash()) return Colors.blue;
+    if(tx.isTimestampTx) return Colors.blue;
     if(tx.direction == 'out'){
       return Theme.of(context).errorColor;
     }else{

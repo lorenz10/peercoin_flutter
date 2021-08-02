@@ -16,7 +16,6 @@ import '../models/walletaddress.dart';
 import '../models/wallettransaction.dart';
 import '../models/walletutxo.dart';
 import '../providers/encryptedbox.dart';
-import '../widgets/send_tab.dart';
 
 class ActiveWallets with ChangeNotifier {
   final EncryptedBox _encryptedBox;
@@ -362,6 +361,28 @@ class ActiveWallets with ChangeNotifier {
     await openWallet.save();
   }
 
+  //Tempura: adds name and hash to the tx
+  Future<void> putOutgoingTxData(String identifier, String address, Map tx, String hash, String name) async {
+    var openWallet = getSpecificCoinWallet(identifier);
+
+    openWallet.putTransaction(WalletTransaction(
+      txid: tx['txid'],
+      timestamp: tx['blocktime'] ?? 0,
+      value: tx['outValue'],
+      fee: tx['outFees'],
+      address: address,
+      direction: 'out',
+      broadCasted: false,
+      confirmations: 0,
+      broadcastHex: tx['hex'],
+      fileHash: hash,
+      fileName: name,
+    ));
+
+    notifyListeners();
+    await openWallet.save();
+  }
+
   Future<void> prepareForRescan(String identifier) async {
     var openWallet = getSpecificCoinWallet(identifier);
     openWallet.utxos.removeRange(0, openWallet.utxos.length);
@@ -611,7 +632,8 @@ class ActiveWallets with ChangeNotifier {
         var number = ((intermediate.txSize) / 1000 * coin.feePerKb)
             .toStringAsFixed(coin.fractions);
 
-        //Doubled fees to avoid errors
+        //Tempura: doubled fees to avoid lorenz10/bitcoin_flutter
+        // library error
         var asDouble = double.parse(number) * 2000000;
         var requiredFeeInSatoshis = asDouble.toInt();
         print('fee $requiredFeeInSatoshis, size: ${intermediate.txSize}');
@@ -674,15 +696,9 @@ class ActiveWallets with ChangeNotifier {
       String identifier, String txId, bool broadcasted) async {
     var openWallet = getSpecificCoinWallet(identifier);
     var tx =
-        openWallet.transactions.firstWhere((element) => element.txid == txId);
+    openWallet.transactions.firstWhere((element) => element.txid == txId);
     tx.broadCasted = broadcasted;
-
-    //Tempura: in case a file has been hashed keep it in broadcastHex variable
-    if(HashUtility.hasOpReturnHash(tx.broadcastHex)){
-      tx.broadcastHex = HashUtility.getHashFromTransHex(tx.broadcastHex);
-    }else{
-      tx.resetBroadcastHex();
-    }
+    tx.resetBroadcastHex();
     await openWallet.save();
   }
 
