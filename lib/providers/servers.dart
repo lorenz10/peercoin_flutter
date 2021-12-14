@@ -21,7 +21,7 @@ class Servers with ChangeNotifier {
       'wss://allingas.peercoinexplorer.net:50009',
     ],
     'tempuraTestnet': [
-      'wss://tempura-july.hopto.org:50004',
+      'wss://tempura.hopto.org:50004',
     ]
   };
 
